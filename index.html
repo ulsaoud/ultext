@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UL-TEXT | Advanced Text Cleaner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Libraries for PDF and Image generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gray: {
+                            850: '#1f2937',
+                            900: '#111827',
+                            950: '#0b0f19',
+                        },
+                        orange: {
+                            highlight: 'rgba(249, 115, 22, 0.4)', // Orange 500 with opacity
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['"Fira Code"', 'monospace', 'ui-monospace', 'SFMono-Regular']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280; 
+        }
+
+        /* Editor Styles */
+        .editor-container {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            font-family: 'Fira Code', monospace;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .editor-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 1rem;
+            box-sizing: border-box;
+            border-radius: 0.5rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow: auto;
+            margin: 0;
+            border: 1px solid transparent;
+        }
+
+        #backdrop {
+            z-index: 1;
+            background-color: #1f2937;
+            color: transparent;
+            pointer-events: none;
+        }
+
+        mark {
+            background-color: rgba(249, 115, 22, 0.5);
+            color: transparent;
+            border-radius: 2px;
+            padding-top: 2px;
+            padding-bottom: 2px;
+        }
+
+        #input-area {
+            z-index: 2;
+            background-color: transparent;
+            color: #f3f4f6;
+            caret-color: #f97316;
+            resize: none;
+            outline: none;
+            border-color: #374151;
+        }
+        
+        #input-area:focus {
+            border-color: #f97316;
+            box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.2);
+        }
+        
+        .action-btn {
+            touch-action: manipulation;
+        }
+
+        /* Active State for Buttons - High Visibility */
+        .btn-active {
+            background-color: #ea580c !important; /* Orange 600 */
+            color: white !important;
+            border-color: #fff7ed !important; /* Orange 50 */
+            box-shadow: 0 0 0 2px #fff, 0 0 10px rgba(234, 88, 12, 0.5) !important;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col font-sans antialiased selection:bg-orange-500 selection:text-white">
+
+    <!-- Header -->
+    <header class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-orange-500/20">
+                    UL
+                </div>
+                <h1 class="text-xl font-bold tracking-tight text-white">UL-TEXT</h1>
+            </div>
+            <nav class="flex gap-4 text-sm text-gray-400">
+                <span class="px-4 py-1.5 bg-gray-800 rounded-full border border-gray-700 text-gray-300 font-mono text-xs sm:text-sm tracking-wider hover:bg-gray-700 transition-colors cursor-default">
+                    @UL-SAOUD
+                </span>
+            </nav>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+        <!-- Controls Section -->
+        <section class="bg-gray-900 rounded-xl border border-gray-800 p-6 shadow-xl">
+            <div class="flex flex-col gap-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">Quick Remove</h2>
+                        <p class="text-sm text-gray-400">Select elements to identify and remove.</p>
+                    </div>
+                </div>
+                
+                <!-- Toggles Grid - Responsive -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-3" id="toggle-container">
+                    <button data-type="url" class="filter-btn h-10 group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-all duration-200 ease-in-out border rounded-lg focus:outline-none bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700 active:scale-95">
+                        <span class="mr-2">🔗</span> URL
+                    </button>
+                    <button data-type="star" class="filter-btn h-10 group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-all duration-200 ease-in-out border rounded-lg focus:outline-none bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700 active:scale-95">
+                        <span class="mr-2">★</span> Star
+                    </button>
+                    <button data-type="hashtag" class="filter-btn h-10 group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-all duration-200 ease-in-out border rounded-lg focus:outline-none bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700 active:scale-95">
+                        <span class="mr-2">#</span> Hashtags
+                    </button>
+                    <button data-type="parens" class="filter-btn h-10 group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-all duration-200 ease-in-out border rounded-lg focus:outline-none bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700 active:scale-95">
+                        <span class="mr-2"></span> ( ... )
+                    </button>
+                    <button data-type="brackets" class="filter-btn h-10 group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-all duration-200 ease-in-out border rounded-lg focus:outline-none bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700 active:scale-95">
+                        <span class="mr-2"></span> [..] {..}
+                    </button>
+                    <!-- NEW: Single Quotes -->
+                    <button data-type="squote" class="filter-btn h-10 group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-all duration-200 ease-in-out border rounded-lg focus:outline-none bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700 active:scale-95">
+                        <span class="mr-2"></span> ' ... '
+                    </button>
+                    <!-- NEW: Double Quotes -->
+                    <button data-type="dquote" class="filter-btn h-10 group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-all duration-200 ease-in-out border rounded-lg focus:outline-none bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700 active:scale-95">
+                        <span class="mr-2"></span> " ... "
+                    </button>
+                    <button data-type="hyphen" class="filter-btn h-10 group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-all duration-200 ease-in-out border rounded-lg focus:outline-none bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700 active:scale-95">
+                        <span class="mr-2 text-lg leading-none">-</span> Hyphen
+                    </button>
+                </div>
+
+                <!-- Custom Remove Input -->
+                <div class="flex items-center bg-gray-800/50 p-1 rounded-lg border border-gray-700 focus-within:border-orange-500/50 focus-within:ring-1 focus-within:ring-orange-500/50 transition-all">
+                    <input type="text" id="custom-tax-input" placeholder="Type words to remove..." class="bg-transparent border-none text-gray-200 placeholder-gray-500 focus:ring-0 w-full text-sm px-3 py-2">
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Editor Box -->
+        <section class="space-y-4">
+            <div class="flex justify-between items-end">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Input Box</h3>
+                    <span id="match-count" class="text-xs px-2 py-0.5 rounded bg-orange-900/40 text-orange-400 border border-orange-500/20 hidden">
+                        0 matches
+                    </span>
+                </div>
+                
+                <!-- Copy/Paste Buttons -->
+                <div class="flex gap-2">
+                     <button onclick="pasteText()" class="action-btn flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-xs sm:text-sm text-gray-300 rounded-md border border-gray-700 transition-colors" title="Paste from Clipboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        Paste
+                    </button>
+                    <button onclick="copyToClipboard()" class="action-btn flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-xs sm:text-sm text-gray-300 rounded-md border border-gray-700 transition-colors" title="Copy to Clipboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                        Copy
+                    </button>
+                </div>
+            </div>
+
+            <div class="relative group">
+                <!-- Editor Container -->
+                <div class="editor-container shadow-2xl rounded-lg bg-gray-900 ring-1 ring-gray-800">
+                    <!-- Backdrop for Highlights -->
+                    <div id="backdrop" class="editor-layer"></div>
+                    <!-- Actual Input -->
+                    <textarea id="input-area" class="editor-layer" placeholder="Paste your text here... Selected items will be highlighted in orange." spellcheck="false"></textarea>
+                </div>
+            </div>
+        </section>
+
+        <!-- Action Bar with Updated Downloads -->
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-10">
+            <button onclick="removeHighlights()" class="h-12 flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold rounded-lg shadow-lg shadow-orange-900/20 transition-all transform hover:scale-[1.01] active:scale-[0.99] touch-manipulation">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                </svg>
+                Remove Highlighted
+            </button>
+            
+            <!-- New Download Group -->
+            <div class="grid grid-cols-3 gap-2 h-12">
+                <button onclick="downloadText()" class="flex items-center justify-center gap-1 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg border border-gray-700 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    TXT
+                </button>
+                <button onclick="downloadJPG()" class="flex items-center justify-center gap-1 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg border border-gray-700 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    JPG
+                </button>
+                <button onclick="downloadPDF()" class="flex items-center justify-center gap-1 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg border border-gray-700 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    PDF
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-gray-800 text-white px-4 py-3 rounded-lg shadow-lg border border-gray-700 transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-2 max-w-[90vw]">
+        <svg class="w-5 h-5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        <span id="toast-msg" class="text-sm font-medium">Action completed</span>
+    </div>
+
+    <script>
+        // DOM Elements
+        const inputArea = document.getElementById('input-area');
+        const backdrop = document.getElementById('backdrop');
+        const customInput = document.getElementById('custom-tax-input');
+        const matchCount = document.getElementById('match-count');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+
+        // State
+        let activeFilters = {
+            url: false,
+            star: false,
+            hashtag: false,
+            parens: false,
+            brackets: false,
+            hyphen: false,
+            squote: false, // NEW
+            dquote: false  // NEW
+        };
+        let customText = '';
+
+        // Updated Regex Patterns
+        const patterns = {
+            url: /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/gi,
+            star: /\*/g,
+            hashtag: /#\w+/g, // FIXED: Simplified regex to catch standard hashtags better
+            parens: /\(([^)]*)\)/g, 
+            brackets: /(\[[^\]]*\]|\{[^}]*\})/g, 
+            hyphen: /-/g,
+            squote: /'[^']*'/g, // NEW: Single quotes content
+            dquote: /"[^"]*"/g  // NEW: Double quotes content
+        };
+
+        // Event Listeners
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const type = btn.getAttribute('data-type');
+                activeFilters[type] = !activeFilters[type];
+                
+                // FIXED VISIBILITY: Toggle specific visual class for clearer selection
+                if (activeFilters[type]) {
+                    btn.classList.add('btn-active');
+                    // Remove default colors to let btn-active take over
+                    btn.classList.remove('bg-gray-800', 'border-gray-700', 'text-gray-300');
+                } else {
+                    btn.classList.remove('btn-active');
+                    // Restore default colors
+                    btn.classList.add('bg-gray-800', 'border-gray-700', 'text-gray-300');
+                }
+                
+                updateHighlights();
+            });
+        });
+
+        customInput.addEventListener('input', (e) => {
+            customText = e.target.value;
+            updateHighlights();
+        });
+
+        inputArea.addEventListener('input', updateHighlights);
+        inputArea.addEventListener('scroll', syncScroll);
+
+        function syncScroll() {
+            backdrop.scrollTop = inputArea.scrollTop;
+            backdrop.scrollLeft = inputArea.scrollLeft;
+        }
+
+        function escapeHTML(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function getCombinedRegex() {
+            const regexParts = [];
+            
+            if (activeFilters.url) regexParts.push(patterns.url.source);
+            if (activeFilters.star) regexParts.push('\\*'); 
+            if (activeFilters.hashtag) regexParts.push(patterns.hashtag.source);
+            if (activeFilters.parens) regexParts.push(patterns.parens.source);
+            if (activeFilters.brackets) regexParts.push(patterns.brackets.source);
+            if (activeFilters.hyphen) regexParts.push(patterns.hyphen.source);
+            if (activeFilters.squote) regexParts.push(patterns.squote.source);
+            if (activeFilters.dquote) regexParts.push(patterns.dquote.source);
+            
+            if (customText.trim().length > 0) {
+                const terms = customText.split(',').map(t => t.trim()).filter(t => t.length > 0);
+                if (terms.length > 0) {
+                    const escapedTerms = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                    regexParts.push('(' + escapedTerms.join('|') + ')');
+                }
+            }
+
+            if (regexParts.length === 0) return null;
+            return new RegExp(regexParts.join('|'), 'gi');
+        }
+
+        function updateHighlights() {
+            const text = inputArea.value;
+            const regex = getCombinedRegex();
+            
+            if (!regex) {
+                backdrop.innerHTML = escapeHTML(text);
+                matchCount.classList.add('hidden');
+                return;
+            }
+
+            let matchCountVal = 0;
+            let finalHtml = '';
+            let lastIndex = 0;
+            const execRegex = getCombinedRegex(); 
+            let m;
+            
+            while ((m = execRegex.exec(text)) !== null) {
+                if (m.index === execRegex.lastIndex) execRegex.lastIndex++;
+                
+                finalHtml += escapeHTML(text.slice(lastIndex, m.index));
+                matchCountVal++;
+                finalHtml += `<mark>${escapeHTML(m[0])}</mark>`;
+                lastIndex = m.index + m[0].length;
+            }
+            finalHtml += escapeHTML(text.slice(lastIndex));
+            
+            if (text.length > 0 && text[text.length - 1] === '\n') {
+                finalHtml += '<br>&nbsp;'; 
+            }
+
+            backdrop.innerHTML = finalHtml;
+            
+            if (matchCountVal > 0) {
+                matchCount.textContent = `${matchCountVal} matches`;
+                matchCount.classList.remove('hidden');
+            } else {
+                matchCount.classList.add('hidden');
+            }
+        }
+
+        function removeHighlights() {
+            const regex = getCombinedRegex();
+            if (!regex) {
+                showToast("No filters selected", "text-yellow-400");
+                return;
+            }
+
+            const text = inputArea.value;
+            const newText = text.replace(regex, '');
+            
+            if (text === newText) {
+                showToast("Nothing to remove", "text-gray-400");
+                return;
+            }
+
+            inputArea.value = newText;
+            updateHighlights();
+            showToast("Cleaned successfully!", "text-green-500");
+        }
+
+        // --- NEW DOWNLOAD FUNCTIONS ---
+
+        function downloadText() {
+            const text = inputArea.value;
+            if (!text) { showToast("Empty", "text-red-400"); return; }
+            
+            const blob = new Blob([text], { type: 'text/plain' });
+            saveFile(blob, 'ul-text.txt');
+        }
+
+        function downloadPDF() {
+            const text = inputArea.value;
+            if (!text) { showToast("Empty", "text-red-400"); return; }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Split text to fit PDF page width
+            const splitText = doc.splitTextToSize(text, 180); // 180mm width
+            
+            doc.setFontSize(12);
+            doc.text(splitText, 15, 15);
+            doc.save('ul-text.pdf');
+            showToast("PDF Downloaded");
+        }
+
+        function downloadJPG() {
+            const text = inputArea.value;
+            if (!text) { showToast("Empty", "text-red-400"); return; }
+
+            // Create a temporary container for snapshot
+            const div = document.createElement('div');
+            div.style.width = '800px';
+            div.style.padding = '40px';
+            div.style.backgroundColor = '#111827'; // Dark bg
+            div.style.color = '#f3f4f6'; // Light text
+            div.style.fontFamily = 'monospace';
+            div.style.whiteSpace = 'pre-wrap';
+            div.innerText = text;
+            document.body.appendChild(div);
+
+            html2canvas(div).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'ul-text.jpg';
+                link.href = canvas.toDataURL('image/jpeg');
+                link.click();
+                document.body.removeChild(div);
+                showToast("JPG Downloaded");
+            });
+        }
+
+        function saveFile(blob, filename) {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            showToast("Downloaded");
+        }
+
+        // --- END DOWNLOAD FUNCTIONS ---
+
+        function copyToClipboard() {
+            const text = inputArea.value;
+            if (!text) { showToast("Empty", "text-yellow-400"); return; }
+            navigator.clipboard.writeText(text).then(() => {
+                showToast("Copied");
+            });
+        }
+        
+        async function pasteText() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    const start = inputArea.selectionStart;
+                    const end = inputArea.selectionEnd;
+                    const currentVal = inputArea.value;
+                    inputArea.value = currentVal.substring(0, start) + text + currentVal.substring(end);
+                    inputArea.selectionStart = inputArea.selectionEnd = start + text.length;
+                    updateHighlights();
+                    showToast("Pasted");
+                }
+            } catch (err) {
+                showToast("Permission denied", "text-red-400");
+            }
+        }
+
+        function showToast(message, colorClass = "text-green-500") {
+            const toast = document.getElementById('toast');
+            const msg = document.getElementById('toast-msg');
+            msg.innerText = message;
+            
+            const icon = toast.querySelector('svg');
+            icon.className = `w-5 h-5 ${colorClass}`;
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            if (toast.timeoutId) clearTimeout(toast.timeoutId);
+            
+            toast.timeoutId = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
